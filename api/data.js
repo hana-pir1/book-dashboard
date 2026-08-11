@@ -5,6 +5,7 @@
 const NOTION_VERSION = "2022-06-28";
 const RANKING_DB_ID = "3b7688dd-b51f-81c1-a0f2-c06f50bfd20e";
 const SNS_HOT_DB_ID = "3b7688dd-b51f-81f0-8558-cc58f9c74210";
+const IDEA_DB_ID = "bc439154-5d90-4184-9175-7e9ef73d7794"; // Today's Idea
 const MAX_PAGES = 6; // 1회 최대 600건까지 (100 x 6). 필요시 늘릴 수 있음.
 
 async function queryDatabase(dbId, token) {
@@ -49,9 +50,10 @@ module.exports = async (req, res) => {
   const token = process.env.NOTION_TOKEN;
 
   try {
-    const [rankingPages, snsPages] = await Promise.all([
+    const [rankingPages, snsPages, ideaPages] = await Promise.all([
       queryDatabase(RANKING_DB_ID, token),
       queryDatabase(SNS_HOT_DB_ID, token),
+      queryDatabase(IDEA_DB_ID, token),
     ]);
 
     const ranking = rankingPages.map((p) => ({
@@ -72,12 +74,24 @@ module.exports = async (req, res) => {
       url: getText(p.properties["URL"]),
     }));
 
+    const idea = ideaPages.map((p) => ({
+      hook: getText(p.properties["후킹 문구"]),
+      book: getText(p.properties["관련 책"]),
+      author: getText(p.properties["저자"]),
+      date: getText(p.properties["날짜"]),
+      reason: getText(p.properties["근거"]),
+    }));
+
     const dates = Array.from(
-      new Set([...ranking.map((b) => b.date), ...sns.map((b) => b.date)].filter(Boolean))
+      new Set(
+        [...ranking.map((b) => b.date), ...sns.map((b) => b.date), ...idea.map((b) => b.date)].filter(
+          Boolean
+        )
+      )
     ).sort((a, b) => (a < b ? 1 : -1)); // 최신순
 
     res.setHeader("Cache-Control", "s-maxage=1800"); // 30분 캐시
-    res.status(200).json({ ranking, sns, dates });
+    res.status(200).json({ ranking, sns, idea, dates });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
